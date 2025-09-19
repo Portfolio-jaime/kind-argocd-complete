@@ -1,0 +1,93 @@
+# ArgoCD GitHub Authentication Configuration
+# Apply this configuration to enable GitHub OAuth authentication
+
+# 1. ArgoCD Server Configuration with GitHub OAuth
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: argocd-cm
+  namespace: argocd
+data:
+  url: https://argocd.test.com
+  admin.enabled: "true"
+  exec.enabled: "false"
+
+  # DEX Configuration for GitHub OAuth
+  dex.config: |
+    connectors:
+    - type: github
+      id: github
+      name: GitHub
+      config:
+        clientID: $dex.github.clientId
+        clientSecret: $dex.github.clientSecret
+        orgs:
+        - name: your-github-org  # Replace with your GitHub organization
+        teamNameField: slug
+        useLoginAsID: false
+
+  # OIDC Configuration
+  oidc.config: |
+    name: GitHub
+    issuer: https://dex.argocd.test.com/api/dex
+    clientId: argocd
+    clientSecret: $oidc.clientSecret
+    requestedScopes: ["openid", "profile", "email", "groups"]
+    requestedIDTokenClaims: {"groups": {"essential": true}}
+
+---
+# 2. ArgoCD Secret for GitHub OAuth credentials
+apiVersion: v1
+kind: Secret
+metadata:
+  name: argocd-secret
+  namespace: argocd
+type: Opaque
+stringData:
+  # Replace these with your actual GitHub OAuth App credentials
+  dex.github.clientId: "your-github-client-id"
+  dex.github.clientSecret: "your-github-client-secret"
+
+  # OIDC client secret (generate a random string)
+  oidc.clientSecret: "random-generated-secret-string"
+
+  # Server secret key (generate a random string)
+  server.secretkey: "generated-secret-key-for-jwt-signing"
+
+---
+# 3. ArgoCD RBAC Configuration
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: argocd-rbac-cm
+  namespace: argocd
+data:
+  # Default policy for authenticated users
+  policy.default: role:readonly
+
+  # RBAC policies
+  policy.csv: |
+    # Admin group has full access
+    p, role:admin, applications, *, */*, allow
+    p, role:admin, clusters, *, *, allow
+    p, role:admin, repositories, *, *, allow
+    p, role:admin, certificates, *, *, allow
+    p, role:admin, accounts, *, *, allow
+    p, role:admin, gpgkeys, *, *, allow
+
+    # Developer group has limited access
+    p, role:developer, applications, get, */*, allow
+    p, role:developer, applications, sync, */*, allow
+    p, role:developer, repositories, get, *, allow
+    p, role:developer, clusters, get, *, allow
+
+    # Map GitHub teams to ArgoCD roles
+    # Replace 'your-github-org' with your actual GitHub organization
+    g, your-github-org:argocd-admins, role:admin
+    g, your-github-org:developers, role:developer
+
+    # Map individual users (optional)
+    # g, github-username, role:admin
+
+  # Enable audit logging for RBAC
+  policy.matchMode: glob

@@ -1,0 +1,209 @@
+# ArgoCD Configuration Detected from Current Installation
+# Generated: $(date)
+# Source: Helm Chart argo-cd-8.3.7, ArgoCD v3.1.5
+
+# Current Helm Values (detected)
+helmValues:
+  applicationSet:
+    replicas: 1
+  certificate:
+    enabled: true
+  controller:
+    replicas: 1
+  global:
+    domain: argocd.test.com
+  redis-ha:
+    enabled: false
+  repoServer:
+    replicas: 1
+  server:
+    ingress:
+      annotations:
+        nginx.ingress.kubernetes.io/backend-protocol: HTTPS
+      enabled: true
+      ingressClassName: nginx
+      tls: true
+
+---
+# Complete Helm Values Template for Reproduction
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: argocd-reproduction-values
+  namespace: default
+data:
+  values.yaml: |
+    # ArgoCD Helm Values for Complete Reproduction
+    # Chart: argo-cd version 8.3.7
+    # App Version: v3.1.5
+
+    global:
+      domain: argocd.test.com
+
+    # ArgoCD Controller
+    controller:
+      replicas: 1
+      resources:
+        limits:
+          memory: 1Gi
+        requests:
+          cpu: 100m
+          memory: 512Mi
+
+    # Application Set Controller
+    applicationSet:
+      replicas: 1
+      resources:
+        limits:
+          memory: 512Mi
+        requests:
+          cpu: 50m
+          memory: 256Mi
+
+    # Repository Server
+    repoServer:
+      replicas: 1
+      resources:
+        limits:
+          memory: 1Gi
+        requests:
+          cpu: 100m
+          memory: 512Mi
+
+    # ArgoCD Server
+    server:
+      replicas: 1
+      resources:
+        limits:
+          memory: 512Mi
+        requests:
+          cpu: 100m
+          memory: 256Mi
+
+      # Ingress Configuration
+      ingress:
+        enabled: true
+        ingressClassName: nginx
+        annotations:
+          nginx.ingress.kubernetes.io/backend-protocol: "HTTPS"
+          nginx.ingress.kubernetes.io/force-ssl-redirect: "true"
+          nginx.ingress.kubernetes.io/proxy-read-timeout: "3600"
+          nginx.ingress.kubernetes.io/proxy-send-timeout: "3600"
+        hosts:
+          - argocd.test.com
+        tls:
+          - secretName: argocd-server-tls
+            hosts:
+              - argocd.test.com
+
+      # Server Configuration
+      config:
+        url: https://argocd.test.com
+        admin.enabled: "true"
+        exec.enabled: "false"
+        server.rbac.log.enforce.enable: "false"
+        statusbadge.enabled: "false"
+        timeout.hard.reconciliation: 0s
+        timeout.reconciliation: 180s
+
+    # DEX Server (for OAuth)
+    dex:
+      enabled: true
+      resources:
+        limits:
+          memory: 256Mi
+        requests:
+          cpu: 50m
+          memory: 128Mi
+
+    # Redis (disable HA for local)
+    redis-ha:
+      enabled: false
+
+    redis:
+      enabled: true
+      resources:
+        limits:
+          memory: 256Mi
+        requests:
+          cpu: 50m
+          memory: 128Mi
+
+    # Certificate Management
+    certificate:
+      enabled: true
+      domain: argocd.test.com
+      issuer:
+        kind: "ClusterIssuer"
+        name: "selfsigned-issuer"
+
+    # Notifications Controller
+    notifications:
+      enabled: true
+      resources:
+        limits:
+          memory: 256Mi
+        requests:
+          cpu: 50m
+          memory: 128Mi
+
+    # Monitoring (disabled for local)
+    prometheus:
+      enabled: false
+
+    grafana:
+      enabled: false
+
+    # Additional Configurations
+    configs:
+      # Repository credentials
+      repositories: {}
+
+      # Secret management
+      secret:
+        createSecret: true
+
+      # Additional server parameters
+      params:
+        server.insecure: false
+        server.rootpath: ""
+
+      # RBAC Configuration (basic)
+      rbac:
+        create: true
+        policy.default: role:readonly
+
+    # Resource customizations and exclusions (from current config)
+    server:
+      config:
+        resource.customizations.ignoreResourceUpdates.ConfigMap: |
+          jqPathExpressions:
+            - '.metadata.annotations."cluster-autoscaler.kubernetes.io/last-updated"'
+            - '.metadata.annotations."control-plane.alpha.kubernetes.io/leader"'
+        resource.customizations.ignoreResourceUpdates.Endpoints: |
+          jsonPointers:
+            - /metadata
+            - /subsets
+        resource.customizations.ignoreResourceUpdates.all: |
+          jsonPointers:
+            - /status
+        resource.exclusions: |
+          ### Network resources created by the Kubernetes control plane
+          - apiGroups:
+            - ''
+            - discovery.k8s.io
+            kinds:
+            - Endpoints
+            - EndpointSlice
+          ### Internal Kubernetes resources
+          - apiGroups:
+            - coordination.k8s.io
+            kinds:
+            - Lease
+          ### Cilium internal resources
+          - apiGroups:
+            - cilium.io
+            kinds:
+            - CiliumIdentity
+            - CiliumEndpoint
+            - CiliumEndpointSlice
